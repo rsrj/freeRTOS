@@ -1,35 +1,50 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
+#include "freertos/event_groups.h"
 
-static TaskHandle_t xReceiverHandler = NULL, xSenderHandler = NULL;
+EventGroupHandle_t evtGrp;
+const int gotHttp = BIT0; //(1<<0)
+const int gotBLE = BIT1; //(1<<1)
 
-void sender(void * params)
+void listenForHTTP(void * params)
 {
     while (true)
     {
-        xTaskNotifyGive(xReceiverHandler); /*Send notification to the receiver() task, bringing it out of the blocked state*/
-        xTaskNotifyGive(xReceiverHandler);
-        xTaskNotifyGive(xReceiverHandler);
-        xTaskNotifyGive(xReceiverHandler);
-        vTaskDelay(5000 / portTICK_RATE_MS);
+        printf("Got HTTP\n");
+        /*Set the bit gotHttp to HIGH in that evtGroup*/
+        xEventGroupSetBits(evtGrp, gotHttp);
+        vTaskDelay(2000 / portTICK_RATE_MS);
     }
 }
 
-void receiver(void * params)
+void listenForBluetooth(void * params)
 {
     while (true)
     {
+        printf("Got BLE\n");
+        /*Set the bit gotBLE to HIGH in that evtGroup*/
+        xEventGroupSetBits(evtGrp, gotBLE);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+    }
+}
 
-        /*If xClearCountOnExit is pdTRUE it executes only once and clears the counter, 
-        otherwise, if pdFALSE it executes and decrements the counter until it reaches zero.*/
-        uint32_t count = ulTaskNotifyTake( pdFALSE, portMAX_DELAY ); 
-        printf("Received notification %d times\n", count);
+void task1(void *params)
+{
+    while(true)
+    {
+        /*This line will be blocked until the two BITS gotHttp and gotBLE are set to HIGH, 
+        the flag xWaitForAllBits is set to true*/
+        xEventGroupWaitBits(evtGrp, gotHttp | gotBLE, true, true, portMAX_DELAY);
+        printf("\nReceived HTTP and BLE\n");
     }
 }
 
 void app_main(void)
 {
-    xTaskCreate(&receiver, "receiver", 2048, NULL, 2, &xReceiverHandler);
-    xTaskCreate(&sender, "sender", 2048, NULL, 2, &xSenderHandler);
+    evtGrp = xEventGroupCreate();
+    xTaskCreate(&listenForHTTP, "listenForHTTP", 2048, NULL, 1, NULL);
+    xTaskCreate(&listenForBluetooth, "listenForBluetooth", 2048, NULL, 1, NULL);
+    xTaskCreate(&task1, "HTTP and BLE event", 2048, NULL, 1, NULL);
 }

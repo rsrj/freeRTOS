@@ -34,10 +34,20 @@ void task1(void *params)
 {
     while(true)
     {
+        bool clear = false;
         /*This line will be blocked until the two BITS gotHttp and gotBLE are set to HIGH, 
         the flag xWaitForAllBits is set to true*/
-        xEventGroupWaitBits(evtGrp, gotHttp | gotBLE, true, true, portMAX_DELAY);
+        EventBits_t bitsReceived = xEventGroupWaitBits(evtGrp, gotHttp | gotBLE, clear, true, portMAX_DELAY);
+        /*If xClearOnExit defined to true the Event_Bits after xEventGroupWaitBits must be cleared, althrough the 
+        bitsReceived contains the bits before clearing*/
+        EventBits_t bitsAfterWaitBits = xEventGroupGetBits(evtGrp);
+        printf("\nBits received were 0x%x, and bits expected were 0x%x.\n After xEventGroupWaitBits, the bits are 0x%x, because xClearBitsOnExit was set to %s", 
+        bitsReceived, gotHttp | gotBLE, bitsAfterWaitBits, (clear)? "TRUE": "FALSE\n");
         printf("\nReceived HTTP and BLE\n");
+
+        /*Ensures that the bits were cleared after execution*/
+        xEventGroupClearBits(evtGrp, gotHttp | gotBLE);
+        
     }
 }
 
